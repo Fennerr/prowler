@@ -143,6 +143,8 @@ def create_inventory_table(resources: list) -> dict:
             resource_type = "topic"
         elif service == "sqs":
             resource_type = "queue"
+        elif service == "apigateway:
+            resource_type = '-'.join(resource.split(":")[5].split("/")[1::2])
         else:
             resource_type = resource.split(":")[5].split("/")[0]
         if service not in resources_type:
