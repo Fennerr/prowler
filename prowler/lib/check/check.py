@@ -10,13 +10,12 @@ from pkgutil import walk_packages
 from types import ModuleType
 from typing import Any
 
-from alive_progress import alive_bar
 from colorama import Fore, Style
 
 import prowler
-from prowler.config.config import orange_color
 from prowler.lib.check.compliance_models import load_compliance_framework
 from prowler.lib.check.custom_checks_metadata import update_check_metadata
+from prowler.lib.check.managers import ExecutionManager
 from prowler.lib.check.models import Check, load_check_metadata
 from prowler.lib.logger import logger
 from prowler.lib.outputs.outputs import report
@@ -492,45 +491,41 @@ def execute_checks(
         print(
             f"{Style.BRIGHT}Executing {checks_num} {check_noun}, please wait...{Style.RESET_ALL}\n"
         )
-        with alive_bar(
-            total=len(checks_to_execute),
-            ctrl_c=False,
-            bar="blocks",
-            spinner="classic",
-            stats=False,
-            enrich_print=False,
-        ) as bar:
-            for check_name in checks_to_execute:
-                # Recover service from check name
-                service = check_name.split("_")[0]
-                bar.title = (
-                    f"-> Scanning {orange_color}{service}{Style.RESET_ALL} service"
+        execution_manager = ExecutionManager(provider, checks_to_execute)
+        for service, check_name in execution_manager.execute_checks():
+            try:
+                check_findings = execute(
+                    service,
+                    check_name,
+                    provider,
+                    audit_output_options,
+                    audit_info,
+                    services_executed,
+                    checks_executed,
+                    custom_checks_metadata,
                 )
-                try:
-                    check_findings = execute(
-                        service,
-                        check_name,
-                        provider,
-                        audit_output_options,
-                        audit_info,
-                        services_executed,
-                        checks_executed,
-                        custom_checks_metadata,
-                    )
-                    all_findings.extend(check_findings)
+                all_findings.extend(check_findings)
 
-                # If check does not exists in the provider or is from another provider
-                except ModuleNotFoundError:
-                    logger.error(
-                        f"Check '{check_name}' was not found for the {provider.upper()} provider"
-                    )
-                except Exception as error:
-                    logger.error(
-                        f"{check_name} - {error.__class__.__name__}[{error.__traceback__.tb_lineno}]: {error}"
-                    )
-                bar()
-            bar.title = f"-> {Fore.GREEN}Scan completed!{Style.RESET_ALL}"
+            # If check does not exists in the provider or is from another provider
+            except ModuleNotFoundError:
+                logger.error(
+                    f"Check '{check_name}' was not found for the {provider.upper()} provider"
+                )
+            except Exception as error:
+                logger.error(
+                    f"{check_name} - {error.__class__.__name__}[{error.__traceback__.tb_lineno}]: {error}"
+                )
     return all_findings
+
+
+def create_check_service_dict(checks_to_execute):
+    output = {}
+    for check_name in checks_to_execute:
+        service = check_name.split("_")[0]
+        if service not in output.keys():
+            output[service] = []
+        output[service].append(check_name)
+    return output
 
 
 def execute(

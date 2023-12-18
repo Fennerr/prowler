@@ -12,7 +12,6 @@ from prowler.lib.check.check import (
     bulk_load_compliance_frameworks,
     exclude_checks_to_run,
     exclude_services_to_run,
-    execute_checks,
     list_categories,
     list_checks_json,
     list_services,
@@ -30,6 +29,7 @@ from prowler.lib.check.custom_checks_metadata import (
     parse_custom_checks_metadata_file,
     update_checks_metadata,
 )
+from prowler.lib.check.managers import ExecutionManager
 from prowler.lib.cli.parser import ProwlerArgumentParser
 from prowler.lib.logger import logger, set_logging_config
 from prowler.lib.outputs.compliance import display_compliance_table
@@ -187,14 +187,16 @@ def prowler():
 
     # Execute checks
     findings = []
+
     if len(checks_to_execute):
-        findings = execute_checks(
+        execution_manager = ExecutionManager(
             checks_to_execute,
             provider,
             audit_info,
             audit_output_options,
             custom_checks_metadata,
         )
+        findings = execution_manager.execute_checks()
     else:
         logger.error(
             "There are no checks to execute. Please, check your input arguments"
